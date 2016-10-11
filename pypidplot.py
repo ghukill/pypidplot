@@ -13,7 +13,7 @@ import time
 
 
 # config
-DELAY = .5
+DELAY = .1
 MAXPOINTS = 240
 
 
@@ -28,6 +28,16 @@ class PIDStream(object):
 	def value(self):
 		# return (cpu percent, memory percent) tuple
 		return (self.p.cpu_percent(), self.p.memory_percent())
+
+
+class SystemStream(object):
+
+	def __init__(self, label="system"):
+		self.pid = "system"
+		self.label = "system"
+		
+	def value(self):
+		return (psutil.cpu_percent(), psutil.virtual_memory().percent)
 
 
 class Stream(object):
@@ -119,7 +129,8 @@ def main():
 	# DEBUG
 	# print args.pid, args.label
 
-	metric = PIDStream(args.pid[0], args.label[0])
+	#metric = PIDStream(args.pid[0], args.label[0])
+	metric = SystemStream()
 	streamer = Stream(metric)
 	streamer.stream()
 
