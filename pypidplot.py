@@ -13,7 +13,7 @@ import time
 
 
 # config
-DELAY = .1
+DELAY = .5
 MAXPOINTS = 240
 
 
@@ -27,7 +27,7 @@ class PIDStream(object):
 
 	def value(self):
 		# return (cpu percent, memory percent) tuple
-		return (p.cpu_percent(), p.memory_percent())
+		return (self.p.cpu_percent(), self.p.memory_percent())
 
 
 class Stream(object):
@@ -40,24 +40,37 @@ class Stream(object):
 		# streaming params
 		self.delay = delay
 		self.stream_ids = tls.get_credentials_file()['stream_ids']
-		self.stream_id = self.stream_ids[0]
 		self.maxpoints = maxpoints
-		self.stream_dict = {
-			'token':self.stream_id,
-			'maxpoints': self.maxpoints
+		self.stream_dicts = {
+			'cpu':{
+				'token':self.stream_ids[0],
+				'maxpoints':self.maxpoints
+			},
+			'memory':{
+				'token':self.stream_ids[1],
+				'maxpoints':self.maxpoints
+			}
 		}
+
 
 	def stream(self):
 
-		# Initialize trace of streaming plot by embedding the unique stream_id
-		trace1 = go.Scatter(
+		# Initialize traces
+		cpu = go.Scatter(
 			x=[],
 			y=[],
-			mode='lines+markers',
-			stream=self.stream_dict  # (!) embed stream id, 1 per trace
+			mode='lines',
+			stream=self.stream_dicts['cpu']
 		)
 
-		data = go.Data([trace1])
+		memory = go.Scatter(
+			x=[],
+			y=[],
+			mode='lines',
+			stream=self.stream_dicts['memory']
+		)
+
+		data = go.Data([cpu,memory])
 
 		# Add title to layout object
 		layout = go.Layout(title='Plot for process %s, %s' % (self.metric.pid, self.metric.label))
@@ -69,10 +82,12 @@ class Stream(object):
 		py.iplot(fig, filename='pypidplot-%s' % self.metric.label)
 
 		# We will provide the stream link object the same token that's associated with the trace we wish to stream to
-		s = py.Stream(self.stream_id)
+		cpu_stream = py.Stream(self.stream_dicts['cpu']['token'])
+		memory_stream = py.Stream(self.stream_dicts['memory']['token'])
 
 		# We then open a connection
-		s.open()
+		cpu_stream.open()
+		memory_stream.open()
 
 		# Delay start of stream by 5 sec (time to switch tabs)
 		time.sleep(5) 
@@ -81,17 +96,16 @@ class Stream(object):
 			
 			# Current time on x-axis, random numbers on y-axis
 			x = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-			y = self.metric.value() 
 				
 			# Send data to your plot
-			s.write(dict(x=x, y=y))  
+			cpu_stream.write(dict(x=x, y=self.metric.value()[0]))
+			memory_stream.write(dict(x=x, y=self.metric.value()[1]))  
 			
-			#     Write numbers to stream to append current data on plot,
-			#     write lists to overwrite existing data on plot
-					
 			time.sleep(self.delay)  # plot a point every second    
+		
 		# Close the stream when done plotting
-		s.close()
+		cpu_stream.close()
+		memory_stream.close()
 
 
 # main loop
